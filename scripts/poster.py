@@ -17,21 +17,23 @@ load_dotenv()  # .env があれば読み込む
 csv_path = Path("data/posts.csv")
 
 def find_matching_post():
-    """CSV から「今」±5分に一致する投稿文を返す"""
-    now = datetime.now(pytz.timezone("Asia/Tokyo"))
-    tolerance_minutes = 5
+    now = datetime.now(pytz.timezone("Asia/Tokyo")).replace(second=0, microsecond=0)
+    print(f"[DEBUG] 現在時刻（日本時間）: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+    tolerance_minutes = 5  # 許容誤差5分
 
     with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            post_time = datetime.strptime(
-                row["datetime"], "%Y-%m-%d %H:%M:%S"
-            ).replace(tzinfo=pytz.timezone("Asia/Tokyo"))
+            post_time = datetime.strptime(row["datetime"], "%Y-%m-%d %H:%M:%S")
+            post_time = pytz.timezone("Asia/Tokyo").localize(post_time)
 
             delta = abs((post_time - now).total_seconds() / 60)
+            print(f"[DEBUG] CSV内: {post_time.strftime('%Y-%m-%d %H:%M:%S')} / 差分: {delta}分")
+
             if delta <= tolerance_minutes:
                 print(f"[INFO] 投稿対象一致: {row['datetime']} -> {row['text']}")
                 return row["text"]
+
     return None
 
 def post_to_x(text: str):
