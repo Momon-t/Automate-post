@@ -31,8 +31,6 @@ def find_matching_post():
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 import os
-import pytz
-from datetime import datetime
 
 def post_to_x(text):
     email = os.environ["X_EMAIL"]
@@ -41,44 +39,40 @@ def post_to_x(text):
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
+        context = browser.new_context(locale='en-US')  # 英語表示を強制
         page = context.new_page()
 
         try:
-            # ログインページへ
             print("[STEP] ページ遷移: ログイン画面へ")
             page.goto("https://twitter.com/login", timeout=20000)
             page.wait_for_timeout(3000)
 
-            # ユーザー名入力
             print("[STEP] ユーザー名入力")
             page.fill("input[name='text']", email)
-            page.click("div[role='button']:has-text('次へ')")
+            # 英語環境を想定
+            page.click("div[role='button']:has-text('Next')")
             page.wait_for_timeout(2000)
 
-            # パスワード入力
             print("[STEP] パスワード入力")
             page.fill("input[name='password']", password)
-            page.click("div[role='button']:has-text('ログイン')")
-            page.wait_for_timeout(3000)
+            page.click("div[role='button']:has-text('Log in')")
+            page.wait_for_timeout(4000)
 
-            # ホーム画面到達確認（重要！）
-            print("[STEP] ホーム遷移確認")
+            print("[STEP] ホーム確認")
             page.wait_for_url("https://twitter.com/home", timeout=15000)
 
-            # 投稿ページへ遷移
-            print("[STEP] ツイートページへ")
+            print("[STEP] 投稿ページへ")
             page.goto("https://twitter.com/compose/tweet", timeout=15000)
 
             try:
-                page.wait_for_selector("div[aria-label='ツイートテキストを入力']", timeout=15000)
+                page.wait_for_selector("div[aria-label='Tweet text']", timeout=15000)
             except PWTimeout:
-                print("[ERROR] ツイート入力欄が見つかりませんでした")
-                page.screenshot(path="tweet_error.png")  # デバッグ用スクショ
+                print("[ERROR] ツイート欄が見つかりません")
+                page.screenshot(path="tweet_error.png")
                 return
 
             print(f"[STEP] 投稿内容入力: {text}")
-            page.fill("div[aria-label='ツイートテキストを入力']", text)
+            page.fill("div[aria-label='Tweet text']", text)
             page.click("div[data-testid='tweetButton']")
             page.wait_for_timeout(3000)
 
@@ -88,6 +82,7 @@ def post_to_x(text):
             print(f"[FATAL] 予期せぬエラー: {e}")
         finally:
             browser.close()
+
 
 
 if __name__ == "__main__":
