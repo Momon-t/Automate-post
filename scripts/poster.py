@@ -17,14 +17,17 @@ def find_matching_post():
     with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            dt = datetime.strptime(row["datetime"], "%Y-%m-%d %H:%M:%S")
-            dt = pytz.timezone("Asia/Tokyo").localize(dt)
+            # 修正点："%Y-%m-%d %H:%M:%S" に対応
+            post_time = datetime.strptime(row["datetime"], "%Y-%m-%d %H:%M:%S")
+            post_time = pytz.timezone("Asia/Tokyo").localize(post_time)
 
-            delta = abs((dt - now).total_seconds() / 60)
+            delta = abs((post_time - now).total_seconds() / 60)
             if delta <= tolerance_minutes:
+                print(f"[INFO] 投稿対象一致: {row['datetime']} -> {row['text']}")
                 return row["text"]
 
     return None
+
 
 def post_to_x(text):
     email = os.environ["X_EMAIL"]
