@@ -42,34 +42,21 @@ def post_to_x(text):
 
         print("[STEP] ページ遷移: ログイン画面へ")
         page.goto("https://twitter.com/login")
+        page.wait_for_timeout(2000)
 
-        #――――――――――――――――――――――――――――――――――――――#
-        # ① メールアドレス入力フェーズ
-        #――――――――――――――――――――――――――――――――――――――#
         print("[STEP] メールアドレス入力")
         page.fill("input[name='text']", email)
+        page.click("div[role='button'][data-testid='LoginForm_Login_Button']")
+        page.wait_for_timeout(3000)  # 「次へ」後の読み込み待機
 
-        # 🔴 ここから追加 -----------
-        login_btn = page.locator("div[role='button'][data-testid='LoginForm_Login_Button']")
-        login_btn.wait_for(state="visible", timeout=10000)  # 最大10秒待つ
-        login_btn.click()
-        # 🔴 追加ここまで ----------
-
-        #――――――――――――――――――――――――――――――――――――――#
-        # ② パスワード入力フェーズ
-        #――――――――――――――――――――――――――――――――――――――#
         print("[STEP] パスワード入力")
         page.fill("input[name='password']", password)
-
-        # 🔴 ここから追加 -----------
-        pw_login_btn = page.locator("div[role='button'][data-testid='LoginForm_Login_Button']")
-        pw_login_btn.wait_for(state="visible", timeout=10000)
-        pw_login_btn.click()
-        # 🔴 追加ここまで ----------
+        page.click("div[role='button'][data-testid='LoginForm_Login_Button']")
+        page.wait_for_timeout(3000)
 
         print("[STEP] ツイートページへ遷移")
-        page.wait_for_timeout(3000)  # 認証完了待ち
         page.goto("https://twitter.com/compose/tweet")
+        page.wait_for_timeout(2000)
 
         print(f"[STEP] 投稿内容入力: {text}")
         page.fill("div[aria-label='ツイートテキストを入力']", text)
@@ -78,6 +65,7 @@ def post_to_x(text):
 
         print("[SUCCESS] 投稿完了")
         browser.close()
+
 
 
 if __name__ == "__main__":
