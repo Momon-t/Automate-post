@@ -3,7 +3,8 @@ from datetime import datetime
 from playwright.sync_api import sync_playwright
 import os
 
-csv_path = "../data/posts.csv"
+from pathlib import Path
+csv_path = Path("data") / "posts.csv"
 now = datetime.now().replace(second=0, microsecond=0)
 
 def find_matching_post():
