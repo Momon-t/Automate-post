@@ -30,6 +30,8 @@ def find_matching_post():
 
 
 def post_to_x(text):
+    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
     email = os.environ["X_EMAIL"]
     password = os.environ["X_PASSWORD"]
 
@@ -41,18 +43,23 @@ def post_to_x(text):
         page = context.new_page()
 
         print("[STEP] ページ遷移: ログイン画面へ")
-        page.goto("https://twitter.com/login")
-        page.wait_for_timeout(2000)
+        page.goto("https://twitter.com/login", timeout=60000)
 
-        print("[STEP] メールアドレス入力")
-        page.fill("input[name='text']", email)
-        page.click("div[role='button'][data-testid='LoginForm_Login_Button']")
-        page.wait_for_timeout(3000)  # 「次へ」後の読み込み待機
+        try:
+            print("[STEP] メールアドレス入力")
+            page.fill("input[name='text']", email)
+            page.click("div[role='button']:has-text('次へ')")  # 「次へ」ボタンを明示指定
+            page.wait_for_timeout(2000)
 
-        print("[STEP] パスワード入力")
-        page.fill("input[name='password']", password)
-        page.click("div[role='button'][data-testid='LoginForm_Login_Button']")
-        page.wait_for_timeout(3000)
+            print("[STEP] パスワード入力")
+            page.fill("input[name='password']", password)
+            page.click("div[role='button']:has-text('ログイン')")  # ログインボタンも明示指定
+            page.wait_for_timeout(3000)
+
+        except PlaywrightTimeoutError as e:
+            print(f"[ERROR] ログイン要素が見つかりませんでした: {e}")
+            browser.close()
+            return
 
         print("[STEP] ツイートページへ遷移")
         page.goto("https://twitter.com/compose/tweet")
@@ -65,6 +72,7 @@ def post_to_x(text):
 
         print("[SUCCESS] 投稿完了")
         browser.close()
+
 
 
 
