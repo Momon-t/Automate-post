@@ -6,7 +6,9 @@ import os
 
 # CSVのパス（GitHub Actionsルートから見て）
 csv_path = Path("data/posts.csv")
-now = datetime.now().replace(second=0, microsecond=0)
+import pytz
+now = datetime.now(pytz.timezone("Asia/Tokyo")).replace(second=0, microsecond=0)
+
 
 def find_matching_post():
     print("[INFO] CSV読み込み開始")
