@@ -1,24 +1,17 @@
 import csv
-import os
 from datetime import datetime
 from pathlib import Path
-
 import pytz
-from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
-from dotenv import load_dotenv
+from playwright.sync_api import sync_playwright, TimeoutError
 
-# -----------------------------
-# ★ 1. ローカル実行では .env を読む
-#    GitHub Actions では Secrets が優先される
-# -----------------------------
-load_dotenv()  # .env があれば読み込む
-
-# 投稿予定 CSV ファイル
+# 投稿予定CSVファイルのパス
 csv_path = Path("data/posts.csv")
 
+# 現在時刻（日本時間、秒切り捨て）
+now = datetime.now(pytz.timezone("Asia/Tokyo")).replace(second=0, microsecond=0)
+
 def find_matching_post():
-    now = datetime.now(pytz.timezone("Asia/Tokyo")).replace(second=0, microsecond=0)
-    print(f"[DEBUG] 現在時刻（日本時間）: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+    now = datetime.now(pytz.timezone("Asia/Tokyo"))
     tolerance_minutes = 5  # 許容誤差5分
 
     with open(csv_path, encoding="utf-8") as f:
@@ -26,68 +19,41 @@ def find_matching_post():
         for row in reader:
             post_time = datetime.strptime(row["datetime"], "%Y-%m-%d %H:%M:%S")
             post_time = pytz.timezone("Asia/Tokyo").localize(post_time)
-
             delta = abs((post_time - now).total_seconds() / 60)
-            print(f"[DEBUG] CSV内: {post_time.strftime('%Y-%m-%d %H:%M:%S')} / 差分: {delta}分")
-
             if delta <= tolerance_minutes:
                 print(f"[INFO] 投稿対象一致: {row['datetime']} -> {row['text']}")
                 return row["text"]
 
     return None
 
-def post_to_x(text: str):
-    """auth_token Cookie を使って X へツイートする"""
-    # -----------------------------
-    # ★ 2. AUTH_TOKEN を Secrets / .env から取得
-    # -----------------------------
-    auth_token = os.getenv("AUTH_TOKEN")
-    if not auth_token:
-        print("[FATAL] AUTH_TOKEN が未設定です")
-        return
-
-    print("[INFO] auth_token による投稿開始")
+def post_to_x(text):
+    print("[INFO] ログイン済みセッションで投稿を開始します")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(locale="en-US")
-
-        # -----------------------------
-        # ★ 3. Cookie として auth_token を追加
-        # -----------------------------
-        context.add_cookies([{
-            "name": "auth_token",
-            "value": auth_token,
-            "domain": ".twitter.com",
-            "path": "/",
-            "httpOnly": True,
-            "secure": True,
-            "sameSite": "Lax"
-        }])
-
+        context = browser.new_context(storage_state="auth.json")  # ← ここでログイン状態を読み込む
         page = context.new_page()
 
         try:
             print("[STEP] ツイートページへアクセス")
-            page.goto("https://twitter.com/compose/tweet", timeout=30000)
+            page.goto("https://twitter.com/compose/tweet", timeout=20000)
 
-            # ツイート入力欄が現れるまで待機
+            print("[STEP] ツイート入力欄を待機中...")
             page.wait_for_selector("div[aria-label='Tweet text']", timeout=15000)
 
             print(f"[STEP] 投稿内容入力: {text}")
             page.fill("div[aria-label='Tweet text']", text)
-
             page.click("div[data-testid='tweetButton']")
             page.wait_for_timeout(3000)
 
             print("[SUCCESS] 投稿完了")
 
-        except PWTimeout:
-            print("[ERROR] ツイート入力欄が見つかりません（Cookie 失効の可能性）")
-            page.screenshot(path="tweet_error.png")
+        except TimeoutError:
+            print("[FATAL] ツイート入力欄が見つかりません（Cookieが切れた可能性）")
+            page.screenshot(path="error.png")
         except Exception as e:
-            print(f"[FATAL] 予期せぬエラー: {e}")
-            page.screenshot(path="fatal_error.png")
+            print(f"[FATAL] エラー発生: {e}")
+            page.screenshot(path="error.png")
         finally:
             browser.close()
 
