@@ -19,9 +19,9 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: |
-          pip install playwright
-          playwright install chromium
+  run: |
+    pip install playwright pytz
+    playwright install chromium
 
       - name: Run poster script
         env:
