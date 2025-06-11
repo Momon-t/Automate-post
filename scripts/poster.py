@@ -58,6 +58,27 @@ def post_to_x(text):
             print(f"[ERROR] ログイン UI が見つからない: {e}")
             browser.close()
             return
+            
+        # --- パスワード入力後ログイン ---
+        page.fill('input[autocomplete="current-password"]', password)
+        page.click('button:has-text("ログイン"), button:has-text("Log in")', timeout=10000)
+
+        # --- ログイン成功を待つ ---
+        try:
+            page.wait_for_url("https://twitter.com/home", timeout=15000)
+        except PWTimeout:
+            print("[WARN] ホームに自動遷移しなかったが処理を継続する")
+
+        # --- 投稿ページへ遷移 ---
+        page.goto("https://twitter.com/compose/tweet", timeout=15000)
+
+        # --- 投稿欄の確認を厳密化 ---
+        try:
+            page.wait_for_selector('div[aria-label="ツイートテキストを入力"]', timeout=15000)
+        except PWTimeout:
+            print("[ERROR] ツイート入力欄が見つかりませんでした")
+            browser.close()
+            return
 
         # --- ツイート投稿 ---
         page.wait_for_timeout(3000)          # 認証完了待機
