@@ -30,48 +30,47 @@ def find_matching_post():
 
 
 def post_to_x(text):
-    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+    from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
-    email = os.environ["X_EMAIL"]
+    email    = os.environ["X_EMAIL"]
     password = os.environ["X_PASSWORD"]
 
     print(f"[INFO] ログイン開始: {email}")
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
-        page = context.new_page()
+        browser  = p.chromium.launch(headless=True)
+        context  = browser.new_context()
+        page     = context.new_page()
 
-        print("[STEP] ページ遷移: ログイン画面へ")
-        page.goto("https://twitter.com/login", timeout=60000)
+        # --- Twitter 新ログインフローへ ---
+        page.goto("https://twitter.com/i/flow/login", timeout=60000)
 
         try:
-            print("[STEP] メールアドレス入力")
-            page.fill("input[name='text']", email)
-            page.click("div[role='button']:has-text('次へ')")  # 「次へ」ボタンを明示指定
-            page.wait_for_timeout(2000)
+            # ① メール / ユーザー名入力
+            page.fill('input[autocomplete="username"]', email)
+            page.click('button:has-text("次へ"), button:has-text("Next")', timeout=10000)
 
-            print("[STEP] パスワード入力")
-            page.fill("input[name='password']", password)
-            page.click("div[role='button']:has-text('ログイン')")  # ログインボタンも明示指定
-            page.wait_for_timeout(3000)
+            # ② パスワード入力
+            page.fill('input[autocomplete="current-password"]', password)
+            page.click('button:has-text("ログイン"), button:has-text("Log in")', timeout=10000)
 
-        except PlaywrightTimeoutError as e:
-            print(f"[ERROR] ログイン要素が見つかりませんでした: {e}")
+        except PWTimeout as e:
+            print(f"[ERROR] ログイン UI が見つからない: {e}")
             browser.close()
             return
 
-        print("[STEP] ツイートページへ遷移")
+        # --- ツイート投稿 ---
+        page.wait_for_timeout(3000)          # 認証完了待機
         page.goto("https://twitter.com/compose/tweet")
-        page.wait_for_timeout(2000)
+        page.wait_for_selector('div[aria-label="ツイートテキストを入力"]', timeout=15000)
 
         print(f"[STEP] 投稿内容入力: {text}")
-        page.fill("div[aria-label='ツイートテキストを入力']", text)
-        page.click("div[data-testid='tweetButton']")
-        page.wait_for_timeout(3000)
+        page.fill('div[aria-label="ツイートテキストを入力"]', text)
+        page.click('div[data-testid="tweetButton"]', timeout=10000)
 
         print("[SUCCESS] 投稿完了")
         browser.close()
+
 
 
 
