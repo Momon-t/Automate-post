@@ -18,11 +18,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-              python-version: '3.x'
-              
+          python-version: '3.x'
+
       - name: Install dependencies
         run: |
-          pip install playwright pytz
+          pip install playwright pytz python-dotenv
           playwright install chromium
 
       - name: Run poster script
