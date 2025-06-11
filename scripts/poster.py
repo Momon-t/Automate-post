@@ -1,23 +1,28 @@
 import csv
+import os
 from datetime import datetime
 from pathlib import Path
-from playwright.sync_api import sync_playwright
-import os
-
-# CSVのパス（GitHub Actionsルートから見て）
-csv_path = Path("data/posts.csv")
 import pytz
-now = datetime.now(pytz.timezone("Asia/Tokyo")).replace(second=0, microsecond=0)
+from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+from dotenv import load_dotenv
 
+# .env ファイルから環境変数を読み込む（ローカル用）
+load_dotenv()
+
+# 投稿予定CSVファイルのパス
+csv_path = Path("data/posts.csv")
+
+# 現在時刻（日本時間、秒切り捨て）
+now = datetime.now(pytz.timezone("Asia/Tokyo")).replace(second=0, microsecond=0)
 
 def find_matching_post():
     now = datetime.now(pytz.timezone("Asia/Tokyo"))
-    tolerance_minutes = 5  # ←許容範囲を5分に設定
+    tolerance_minutes = 5  # 許容誤差5分
 
     with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            # 修正点："%Y-%m-%d %H:%M:%S" に対応
+            # 秒まで一致させる形式に変更
             post_time = datetime.strptime(row["datetime"], "%Y-%m-%d %H:%M:%S")
             post_time = pytz.timezone("Asia/Tokyo").localize(post_time)
 
@@ -28,48 +33,33 @@ def find_matching_post():
 
     return None
 
-
-from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
-import os
-
 def post_to_x(text):
-    email = os.environ["X_EMAIL"]
-    password = os.environ["X_PASSWORD"]
-    print(f"[INFO] ログイン開始: {email}")
+    # 認証情報を環境変数から取得（GitHub Secrets または .env）
+    auth_token = os.getenv("AUTH_TOKEN")
+    if not auth_token:
+        print("[FATAL] AUTH_TOKEN が未設定です")
+        return
+
+    print("[INFO] トークンによる投稿開始")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(locale='en-US')  # 英語表示を強制
+        context = browser.new_context(
+            locale='en-US',
+            storage_state=None,  # 認証情報は手動ログイン方式なら cookie 読み込みに切り替える
+        )
         page = context.new_page()
 
         try:
-            print("[STEP] ページ遷移: ログイン画面へ")
-            page.goto("https://twitter.com/login", timeout=20000)
-            page.wait_for_timeout(3000)
+            # Twitterの投稿ページへ直接遷移（ログイン不要な場合）
+            page.goto("https://twitter.com/compose/tweet", timeout=20000)
+            page.add_init_script(f"""
+                document.cookie = "auth_token={auth_token}; path=/; domain=.twitter.com; Secure";
+            """)
+            page.reload()
 
-            print("[STEP] ユーザー名入力")
-            page.fill("input[name='text']", email)
-            # 英語環境を想定
-            page.click("div[role='button']:has-text('Next')")
-            page.wait_for_timeout(2000)
-
-            print("[STEP] パスワード入力")
-            page.fill("input[name='password']", password)
-            page.click("div[role='button']:has-text('Log in')")
-            page.wait_for_timeout(4000)
-
-            print("[STEP] ホーム確認")
-            page.wait_for_url("https://twitter.com/home", timeout=15000)
-
-            print("[STEP] 投稿ページへ")
-            page.goto("https://twitter.com/compose/tweet", timeout=15000)
-
-            try:
-                page.wait_for_selector("div[aria-label='Tweet text']", timeout=15000)
-            except PWTimeout:
-                print("[ERROR] ツイート欄が見つかりません")
-                page.screenshot(path="tweet_error.png")
-                return
+            print("[STEP] ツイート入力欄を待機中...")
+            page.wait_for_selector("div[aria-label='Tweet text']", timeout=15000)
 
             print(f"[STEP] 投稿内容入力: {text}")
             page.fill("div[aria-label='Tweet text']", text)
@@ -79,11 +69,10 @@ def post_to_x(text):
             print("[SUCCESS] 投稿完了")
 
         except Exception as e:
-            print(f"[FATAL] 予期せぬエラー: {e}")
+            print(f"[FATAL] エラー発生: {e}")
+            page.screenshot(path="error.png")
         finally:
             browser.close()
-
-
 
 if __name__ == "__main__":
     text = find_matching_post()
