@@ -11,16 +11,19 @@ now = datetime.now(pytz.timezone("Asia/Tokyo")).replace(second=0, microsecond=0)
 
 
 def find_matching_post():
-    print("[INFO] CSV読み込み開始")
+    now = datetime.now(pytz.timezone("Asia/Tokyo"))
+    tolerance_minutes = 5  # ←許容範囲を5分に設定
+
     with open(csv_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            post_time = datetime.strptime(row["datetime"], "%Y-%m-%d %H:%M")
-            print(f"[DEBUG] 比較: {post_time} vs {now}")
-            if post_time == now:
-                print(f"[INFO] 投稿対象発見: {row['text']}")
+            dt = datetime.strptime(row["datetime"], "%Y-%m-%d %H:%M:%S")
+            dt = pytz.timezone("Asia/Tokyo").localize(dt)
+
+            delta = abs((dt - now).total_seconds() / 60)
+            if delta <= tolerance_minutes:
                 return row["text"]
-    print("[INFO] 一致する投稿はありません")
+
     return None
 
 def post_to_x(text):
